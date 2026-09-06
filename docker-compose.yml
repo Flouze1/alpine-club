@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: alpine_db
+    environment:
+      MYSQL_ROOT_PASSWORD: root_sql
+      MYSQL_DATABASE: alpine_club
+      MYSQL_USER: user
+      MYSQL_PASSWORD: user
+    ports:
+      - "5051:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
