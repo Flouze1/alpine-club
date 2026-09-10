@@ -3,4 +3,4 @@ from django.apps import AppConfig
 
 class AscentsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'ascents'
+    name = 'apps.ascents'
