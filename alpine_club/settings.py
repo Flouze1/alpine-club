@@ -35,7 +35,7 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'django.contrib.admin',
-    'django.contrib.auth',
+    'django.contrib.auth',           # ← стандартный auth Django
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
@@ -43,10 +43,13 @@ INSTALLED_APPS = [
 
     'rest_framework',
 
-    'apps.mountains',  
-    'apps.climbers',  
-    'apps.ascents',     
-]
+    'apps.mountains',
+    'apps.climbers',
+    'apps.ascents',
+
+    'apps.accounts',                      # ← ТВОЁ приложение (переименованное)
+]     
+
 
 
 MIDDLEWARE = [
@@ -64,7 +67,7 @@ ROOT_URLCONF = 'alpine_club.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
