@@ -19,18 +19,9 @@ except ImportError:
 
 @login_required(login_url='/login/')
 def home(request):
-    current_climber = climbers.objects.filter(email__startswith=request.user.username).first()
-    if not current_climber:
-        current_climber = climbers.objects.create(
-            first_name=request.user.first_name or request.user.username,
-            last_name=request.user.last_name or "Участник",
-            email=f"{request.user.username}@alpine.local",
-            sports_category='новичок',
-            schoole=False,
-            test=False,
-            created_at=timezone.now()
-        )
+    current_climber = request.user.climber
 
+    
     if request.method == 'POST':
         action = request.POST.get('action')
         
@@ -308,8 +299,13 @@ def register_page(request):
             messages.info(request, "Username already taken!")
             return redirect('/register/')
         
-        user = User.objects.create_user(first_name=first_name, last_name=last_name, username=username, password=password)
-        user.save()
+
+        User.objects.create_user(
+        first_name=first_name,
+        last_name=last_name,
+        username=username,
+        password=password
+        )
         messages.info(request, "Account created Successfully! Please login.")
         return redirect('/login/')
     return render(request, './pages/register.html')

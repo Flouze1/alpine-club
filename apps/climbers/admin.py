@@ -4,9 +4,9 @@ from .models import climbers, groups, climber_members
 
 @admin.register(climbers)
 class ClimberAdmin(admin.ModelAdmin):
-    list_display = ['last_name', 'first_name', 'email', 'sports_category', 'schoole', 'test']
+    list_display = ['user', 'last_name', 'first_name', 'email', 'sports_category', 'schoole', 'test']
     list_filter = ['sports_category', 'schoole', 'test']
-    search_fields = ['last_name', 'first_name', 'email']
+    search_fields = ['last_name', 'first_name', 'email', 'user__username']
 
 
 @admin.register(groups)
