@@ -5,6 +5,10 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 
+from django.db import connections
+from django.db.utils import OperationalError, DatabaseError
+from django.http import JsonResponse, HttpResponse
+
 from django.utils import timezone
 from datetime import datetime, timedelta
 
@@ -17,7 +21,17 @@ try:
 except ImportError:
     reports = None
 
-@login_required(login_url='/login/')
+#@login_required(login_url='/login/')
+
+def health_check(request = None):
+    try:
+        db_conn = connections['default']
+        db_conn.cursor()
+        return JsonResponse({"status":"ok"},status=200)
+    except (OperationalError, DatabaseError, Exception):
+        return JsonResponse({"status": "error", "message": "Database disconnected"}, status=503)
+
+
 def home(request):
     current_climber = request.user.climber
 
@@ -271,6 +285,8 @@ def home(request):
     return render(request, './pages/home.html', context)
 
 def login_page(request):
+    response = health_check(request)
+    if response.status_code!=200: return response
     if request.method == "POST":
         username = request.POST.get('username')
         password = request.POST.get('password')
@@ -289,6 +305,8 @@ def login_page(request):
     return render(request, './pages/login.html')
 
 def register_page(request):
+    response =  health_check(request)
+    if response.status_code!=200: return response
     if request.method == 'POST':
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
@@ -309,3 +327,4 @@ def register_page(request):
         messages.info(request, "Account created Successfully! Please login.")
         return redirect('/login/')
     return render(request, './pages/register.html')
+
