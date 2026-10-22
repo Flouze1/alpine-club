@@ -1,6 +1,13 @@
 from django.contrib import admin
 from .models import climbers, groups, climber_members
+from .models import climbers, groups, climber_members, Attestation
 
+
+@admin.register(Attestation)
+class AttestationAdmin(admin.ModelAdmin):
+    list_display = ['climber', 'target_rank', 'status', 'awarded_rank', 'completed_at']
+    list_filter = ['status', 'target_rank']
+    search_fields = ['climber__last_name']
 
 @admin.register(climbers)
 class ClimberAdmin(admin.ModelAdmin):

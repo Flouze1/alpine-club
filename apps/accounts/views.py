@@ -1,9 +1,15 @@
+from apps.mountains.normals import can_climb
+from apps.climbers.models import climbers, groups, climber_members, Attestation
+from apps.climbers.services import can_attest, is_attestation_overdue, process_attestation
+from apps.climbers.normals import NORMALS
+
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+
 
 from django.db import connections
 from django.db.utils import OperationalError, DatabaseError
@@ -34,6 +40,10 @@ def health_check(request = None):
 
 def home(request):
     current_climber = request.user.climber
+
+    # Проверка: просрочена ли аттестация?
+    if is_attestation_overdue(current_climber):
+        return redirect('attestation')
 
     
     if request.method == 'POST':
@@ -205,13 +215,27 @@ def home(request):
             group_id = request.POST.get('group_id')
             try:
                 group = groups.objects.get(id=group_id)
+                mountain = group.mountain_id
+
+                # Проверка: подходит ли разряд?
+                if not can_climb(current_climber, mountain):
+                    messages.error(request,
+                        f"Ваш разряд ({current_climber.sports_category}) недостаточен "
+                        f"для горы {mountain.name} ({mountain.difficulty})")
+                    return redirect('/home/')
+
                 if climber_members.objects.filter(climber_id=current_climber, groups_id=group).exists():
                     messages.error(request, 'Вы уже записаны в эту группу!')
                 elif climber_members.objects.filter(groups_id=group).count() >= group.max_members:
-                    messages.error(request, f'Достигнут лимит участников ({group.max_members} макс.)!')
+                    messages.error(request, f'Достигнут лимит участников!')
                 else:
-                    climber_members.objects.create(climber_id=current_climber, groups_id=group, role=False, joined_date=timezone.now())
-                    messages.success(request, f'Вы успешно записались в группу "{group.name}"!')
+                    climber_members.objects.create(
+                        climber_id=current_climber,
+                        groups_id=group,
+                        role=False,
+                        joined_date=timezone.now()
+                    )
+                    messages.success(request, f'Вы записались в "{group.name}"!')
             except Exception as e:
                 messages.error(request, f"Ошибка: {e}")
 
@@ -328,3 +352,68 @@ def register_page(request):
         return redirect('/login/')
     return render(request, './pages/register.html')
 
+
+def attestation_view(request):
+    """Страница аттестации"""
+    current_climber = request.user.climber
+    can_attest_now = can_attest(current_climber)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'request_attestation':
+            if not can_attest_now:
+                messages.error(request, "Ещё рано проходить аттестацию!")
+            else:
+                target_rank = request.POST.get('target_rank')
+                Attestation.objects.create(
+                    climber=current_climber,
+                    target_rank=target_rank,
+                    status='pending'
+                )
+                messages.success(request, "Заявка создана!")
+
+        elif action == 'submit_results':
+            attestation_id = request.POST.get('attestation_id')
+            attestation = get_object_or_404(Attestation, id=attestation_id)
+
+            attestation.pullups = int(request.POST.get('pullups', 0) or 0)
+            attestation.rope_climbing = int(request.POST.get('rope_climbing', 0) or 0)
+            attestation.pushups = int(request.POST.get('pushups', 0) or 0)
+            attestation.squats = int(request.POST.get('squats', 0) or 0)
+            attestation.back_bends = int(request.POST.get('back_bends', 0) or 0)
+            attestation.cross_10km = int(request.POST.get('cross_10km', 0) or 0)
+            attestation.shuttle_run = int(request.POST.get('shuttle_run', 0) or 0)
+            attestation.hang = int(request.POST.get('hang', 0) or 0)
+
+            rank = process_attestation(attestation)
+            if rank:
+                messages.success(request, f"Аттестация пройдена! Разряд: {rank}")
+            else:
+                messages.error(request, "Нормативы не выполнены.")
+            return redirect('attestation')
+
+    last_attestation = Attestation.objects.filter(
+        climber=current_climber, status='passed'
+    ).first()
+
+    results_json = None
+    if last_attestation:
+        results_json = {
+            'pullups': last_attestation.pullups,
+            'rope_climbing': last_attestation.rope_climbing,
+            'pushups': last_attestation.pushups,
+            'squats': last_attestation.squats,
+            'back_bends': last_attestation.back_bends,
+            'cross_10km': last_attestation.cross_10km,
+            'shuttle_run': last_attestation.shuttle_run,
+            'hang': last_attestation.hang,
+        }
+
+    return render(request, './pages/attestation.html', {
+        'current_climber': current_climber,
+        'can_attest': can_attest_now,
+        'normals_json': NORMALS,
+        'results_json': results_json,
+        'attestations': Attestation.objects.filter(climber=current_climber),
+    })

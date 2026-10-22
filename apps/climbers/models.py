@@ -17,6 +17,7 @@ class climbers(models.Model):
     schoole = models.BooleanField(default=False)
     test = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    last_attestation_date = models.DateField(null=True, blank=True, verbose_name="Последняя аттестация")
 
     def __str__(self):
         return f"{self.last_name} {self.first_name}"
@@ -56,6 +57,42 @@ class climber_members(models.Model):
     def __str__(self):
         return f"{self.climber_id} в {self.groups_id}"
 
+class Attestation(models.Model):
+    """Заявка на аттестацию с результатами"""
+    STATUS_CHOICES = [
+        ('pending', 'Ожидает'),
+        ('passed', 'Пройдена'),
+        ('failed', 'Не пройдена'),
+    ]
+
+    climber = models.ForeignKey(
+        climbers,
+        on_delete=models.CASCADE,
+        related_name='attestations'
+    )
+    target_rank = models.CharField(max_length=10, verbose_name="Целевой разряд")
+    requested_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата заявки")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата сдачи")
+
+    pullups = models.IntegerField(null=True, blank=True)
+    rope_climbing = models.IntegerField(null=True, blank=True)
+    pushups = models.IntegerField(null=True, blank=True)
+    squats = models.IntegerField(null=True, blank=True)
+    back_bends = models.IntegerField(null=True, blank=True)
+    cross_10km = models.IntegerField(null=True, blank=True, verbose_name="Кросс 10 км (сек)")
+    shuttle_run = models.IntegerField(null=True, blank=True, verbose_name="Челночный бег (сек)")
+    hang = models.IntegerField(null=True, blank=True, verbose_name="Вис (сек)")
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    awarded_rank = models.CharField(max_length=10, null=True, blank=True, verbose_name="Присвоенный разряд")
+
+    class Meta:
+        verbose_name = "Аттестация"
+        verbose_name_plural = "Аттестации"
+        ordering = ['-requested_at']
+
+    def __str__(self):
+        return f"{self.climber} → {self.target_rank}"
 
 # ===== Автоматическое создание Climber при создании User =====
 @receiver(post_save, sender=User)

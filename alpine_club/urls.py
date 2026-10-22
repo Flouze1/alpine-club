@@ -63,11 +63,14 @@ urlpatterns = [
     path('home/', home, name='home'),
     path('login/', login_page, name='login_page'),
     path('register/', register_page, name='register'),
+    path('',include('apps.accounts.urls')),
 ]
 
 # Медиа в режиме разработки
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+#if settings.DEBUG:
+ #   urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+  #  urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
 
 # Статика
-urlpatterns += staticfiles_urlpatterns()
+#urlpatterns += staticfiles_urlpatterns()
