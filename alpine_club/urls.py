@@ -1,17 +1,13 @@
 from django.contrib import admin
-from django.urls import path, include
-from django.http import JsonResponse
-from django.conf import settings
-from django.conf.urls.static import static
-from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.db import connection
-
+from django.http import JsonResponse
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.mountains.views import MountainViewSet
-from apps.climbers.views import ClimberViewSet, GroupViewSet, GroupMemberViewSet
-from apps.ascents.views import AscentViewSet
 from apps.accounts.views import home, login_page, register_page
+from apps.ascents.views import AscentViewSet
+from apps.climbers.views import ClimberViewSet, GroupMemberViewSet, GroupViewSet
+from apps.mountains.views import MountainViewSet
 
 
 # ===== Служебные функции =====
@@ -25,52 +21,51 @@ def health_check(request):
 
 
 def root(request):
-    return JsonResponse({
-        'message': 'Alpine Club API',
-        'endpoints': {
-            'admin': '/admin/',
-            'api': '/api/',
-            'health': '/health/',
-            'home': '/home/',
-            'login': '/login/',
-            'register': '/register/',
+    return JsonResponse(
+        {
+            "message": "Alpine Club API",
+            "endpoints": {
+                "admin": "/admin/",
+                "api": "/api/",
+                "health": "/health/",
+                "home": "/home/",
+                "login": "/login/",
+                "register": "/register/",
+            },
         }
-    })
+    )
 
 
 # ===== API роутер =====
 router = DefaultRouter()
-router.register(r'mountains', MountainViewSet)
-router.register(r'climbers', ClimberViewSet)
-router.register(r'groups', GroupViewSet)
-router.register(r'group-members', GroupMemberViewSet)
-router.register(r'ascents', AscentViewSet)
+router.register(r"mountains", MountainViewSet)
+router.register(r"climbers", ClimberViewSet)
+router.register(r"groups", GroupViewSet)
+router.register(r"group-members", GroupMemberViewSet)
+router.register(r"ascents", AscentViewSet)
 
 
 # ===== Маршруты =====
 urlpatterns = [
     # Главная (JSON со списком эндпоинтов)
-    path('', root, name='root'),
-
+    path("", root, name="root"),
     # Админка
-    path('admin/', admin.site.urls),
-
+    path("admin/", admin.site.urls),
     # API
-    path('api/', include(router.urls)),
-    path('health/', health_check, name='health_check'),
-
+    path("api/", include(router.urls)),
+    path("health/", health_check, name="health_check"),
     # Веб-страницы (аутентификация)
-    path('home/', home, name='home'),
-    path('login/', login_page, name='login_page'),
-    path('register/', register_page, name='register'),
-    path('',include('apps.accounts.urls')),
+    path("home/", home, name="home"),
+    path("login/", login_page, name="login_page"),
+    path("register/", register_page, name="register"),
+    path("", include("apps.accounts.urls")),
 ]
 
 # Медиа в режиме разработки
-#if settings.DEBUG:
- #   urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-  #  urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# if settings.DEBUG:
+#   urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+#  urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 
 # Статика
-#urlpatterns += staticfiles_urlpatterns()
+# urlpatterns += staticfiles_urlpatterns()

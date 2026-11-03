@@ -1,41 +1,42 @@
-from apps.mountains.normals import can_climb
-from apps.climbers.models import climbers, groups, climber_members, Attestation
-from apps.climbers.services import can_attest, is_attestation_overdue, process_attestation
-from apps.climbers.normals import NORMALS
-
-
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
-from django.contrib.auth import authenticate, login
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
-
-
-from django.db import connections
-from django.db.utils import OperationalError, DatabaseError
-from django.http import JsonResponse, HttpResponse
-
-from django.utils import timezone
 from datetime import datetime, timedelta
 
-from apps.mountains.models import mountains
-from apps.climbers.models import climbers, groups, climber_members
+from django.contrib import messages
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.models import User
+from django.db import connections
+from django.db.utils import DatabaseError, OperationalError
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+
 from apps.ascents.models import climbs
+from apps.climbers.models import Attestation, climber_members, groups
+from apps.climbers.normals import NORMALS
+from apps.climbers.services import (
+    can_attest,
+    is_attestation_overdue,
+    process_attestation,
+)
+from apps.mountains.models import mountains
+from apps.mountains.normals import can_climb
 
 try:
     from apps.ascents.models import reports
 except ImportError:
     reports = None
 
-#@login_required(login_url='/login/')
+# @login_required(login_url='/login/')
 
-def health_check(request = None):
+
+def health_check(request=None):
     try:
-        db_conn = connections['default']
+        db_conn = connections["default"]
         db_conn.cursor()
-        return JsonResponse({"status":"ok"},status=200)
+        return JsonResponse({"status": "ok"}, status=200)
     except (OperationalError, DatabaseError, Exception):
-        return JsonResponse({"status": "error", "message": "Database disconnected"}, status=503)
+        return JsonResponse(
+            {"status": "error", "message": "Database disconnected"}, status=503
+        )
 
 
 def home(request):
@@ -43,109 +44,141 @@ def home(request):
 
     # Проверка: просрочена ли аттестация?
     if is_attestation_overdue(current_climber):
-        return redirect('attestation')
+        return redirect("attestation")
 
-    
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        
+    if request.method == "POST":
+        action = request.POST.get("action")
+
         # 1. Создание группы
-        if action == 'create_group':
-            if not request.user.is_staff and not (current_climber.schoole and current_climber.test):
+        if action == "create_group":
+            if not request.user.is_staff and not (
+                current_climber.schoole and current_climber.test
+            ):
                 messages.error(request, "Ошибка: У вас нет прав на создание группы.")
             else:
-                name = request.POST.get('name')
-                mountain_id = request.POST.get('mountain_id')
-                max_members = request.POST.get('max_members')
-                date_str = request.POST.get('date_start')
-                time_str = request.POST.get('time_start')
-                
+                name = request.POST.get("name")
+                mountain_id = request.POST.get("mountain_id")
+                max_members = request.POST.get("max_members")
+                date_str = request.POST.get("date_start")
+                time_str = request.POST.get("time_start")
+
                 try:
                     mountain = mountains.objects.get(id=mountain_id)
-                    
+
                     if date_str and time_str:
-                        date_val = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                        date_val = datetime.strptime(
+                            f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
+                        )
                     elif date_str:
                         date_val = datetime.strptime(date_str, "%Y-%m-%d")
                     else:
                         date_val = timezone.now()
 
                     new_group = None
-                    for date_field in ['date_formation', 'start_event', 'date_start', 'date', 'created_at', 'start_time']:
+                    for date_field in [
+                        "date_formation",
+                        "start_event",
+                        "date_start",
+                        "date",
+                        "created_at",
+                        "start_time",
+                    ]:
                         try:
                             kwargs = {
-                                'name': name,
-                                'mountain_id': mountain,
-                                'max_members': max_members,
-                                date_field: date_val
+                                "name": name,
+                                "mountain_id": mountain,
+                                "max_members": max_members,
+                                date_field: date_val,
                             }
                             new_group = groups.objects.create(**kwargs)
                             break
                         except Exception:
                             continue
-                            
+
                     if not new_group:
-                        new_group = groups.objects.create(name=name, mountain_id=mountain, max_members=max_members)
+                        new_group = groups.objects.create(
+                            name=name, mountain_id=mountain, max_members=max_members
+                        )
 
                     climber_members.objects.create(
-                        climber_id=current_climber, 
-                        groups_id=new_group, 
+                        climber_id=current_climber,
+                        groups_id=new_group,
                         role=True,
-                        joined_date=timezone.now()
+                        joined_date=timezone.now(),
                     )
                     messages.success(request, f"Группа '{name}' успешно создана!")
                 except Exception as e:
                     messages.error(request, f"Ошибка создания группы: {e}")
-                
+
         # 2. Редактирование группы
-        elif action == 'edit_group':
-            group_id = request.POST.get('group_id')
+        elif action == "edit_group":
+            group_id = request.POST.get("group_id")
             group = get_object_or_404(groups, id=group_id)
-            is_leader = climber_members.objects.filter(climber_id=current_climber, groups_id=group, role=True).exists()
-            
+            is_leader = climber_members.objects.filter(
+                climber_id=current_climber, groups_id=group, role=True
+            ).exists()
+
             if not request.user.is_staff and not is_leader:
-                messages.error(request, "Ошибка: Редактировать группу может только её руководитель!")
+                messages.error(
+                    request,
+                    "Ошибка: Редактировать группу может только её руководитель!",
+                )
             else:
-                group.name = request.POST.get('name')
-                group.max_members = request.POST.get('max_members')
-                new_date = request.POST.get('date_start')
-                new_time = request.POST.get('time_start')
-                
+                group.name = request.POST.get("name")
+                group.max_members = request.POST.get("max_members")
+                new_date = request.POST.get("date_start")
+                new_time = request.POST.get("time_start")
+
                 if new_date:
                     try:
                         if new_time:
-                            final_dt = datetime.strptime(f"{new_date} {new_time}", "%Y-%m-%d %H:%M")
+                            final_dt = datetime.strptime(
+                                f"{new_date} {new_time}", "%Y-%m-%d %H:%M"
+                            )
                         else:
                             final_dt = datetime.strptime(new_date, "%Y-%m-%d")
-                            
-                        for date_field in ['date_formation', 'start_event', 'date_start', 'date', 'created_at', 'start_time']:
+
+                        for date_field in [
+                            "date_formation",
+                            "start_event",
+                            "date_start",
+                            "date",
+                            "created_at",
+                            "start_time",
+                        ]:
                             if hasattr(group, date_field):
                                 setattr(group, date_field, final_dt)
                                 break
                     except Exception:
                         pass
-                        
+
                 group.save()
                 messages.success(request, f"Группа '{group.name}' успешно обновлена!")
 
         # 3. Отчёт о восхождении
-        elif action == 'create_ascent':
-            group_id = request.POST.get('group_id')
+        elif action == "create_ascent":
+            group_id = request.POST.get("group_id")
             group = get_object_or_404(groups, id=group_id)
-            is_leader = climber_members.objects.filter(climber_id=current_climber, groups_id=group, role=True).exists()
+            is_leader = climber_members.objects.filter(
+                climber_id=current_climber, groups_id=group, role=True
+            ).exists()
 
             if not request.user.is_staff and not is_leader:
-                messages.error(request, "Ошибка: Отчёт может заполнять только руководитель!")
+                messages.error(
+                    request, "Ошибка: Отчёт может заполнять только руководитель!"
+                )
             else:
-                date_str = request.POST.get('date_start')
-                time_str = request.POST.get('time_start')
-                comment_val = request.POST.get('comment')
-                grade_val = request.POST.get('grade')
-                result_val = request.POST.get('result') == 'on'
-                
+                date_str = request.POST.get("date_start")
+                time_str = request.POST.get("time_start")
+                comment_val = request.POST.get("comment")
+                grade_val = request.POST.get("grade")
+                result_val = request.POST.get("result") == "on"
+
                 try:
                     if date_str and time_str:
-                        dt_val = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                        dt_val = datetime.strptime(
+                            f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
+                        )
                     elif date_str:
                         dt_val = datetime.strptime(date_str, "%Y-%m-%d")
                     else:
@@ -153,15 +186,27 @@ def home(request):
 
                     climb_kwargs = {}
                     for f in [field.name for field in climbs._meta.get_fields()]:
-                        if f in ['group', 'group_id', 'groups', 'groups_id']:
+                        if f in ["group", "group_id", "groups", "groups_id"]:
                             climb_kwargs[f] = group
-                        elif f in ['date_time_start', 'date_start', 'start_event', 'date', 'datetime', 'start_time']:
+                        elif f in [
+                            "date_time_start",
+                            "date_start",
+                            "start_event",
+                            "date",
+                            "datetime",
+                            "start_time",
+                        ]:
                             climb_kwargs[f] = dt_val
-                        elif f in ['end_event', 'date_time_end', 'end_date', 'end_time']:
+                        elif f in [
+                            "end_event",
+                            "date_time_end",
+                            "end_date",
+                            "end_time",
+                        ]:
                             climb_kwargs[f] = dt_val + timedelta(hours=4)
-                        elif f in ['status', 'result', 'результат']:
+                        elif f in ["status", "result", "результат"]:
                             climb_kwargs[f] = "Успех" if result_val else "Отказ"
-                        elif f in ['grade', 'оценка', 'score', 'ball']:
+                        elif f in ["grade", "оценка", "score", "ball"]:
                             climb_kwargs[f] = grade_val if grade_val else "5"
 
                     new_climb = climbs.objects.create(**climb_kwargs)
@@ -169,9 +214,11 @@ def home(request):
                     if reports:
                         try:
                             report_kwargs = {
-                                'climb_id': new_climb if hasattr(reports, 'climb_id') else None,
-                                'summary': comment_val or "",
-                                'success': result_val
+                                "climb_id": new_climb
+                                if hasattr(reports, "climb_id")
+                                else None,
+                                "summary": comment_val or "",
+                                "success": result_val,
                             }
                             reports.objects.create(**report_kwargs)
                         except Exception:
@@ -179,19 +226,21 @@ def home(request):
 
                     messages.success(request, "Отчёт о восхождении успешно сохранён!")
                 except Exception as e:
-                    messages.error(request, f"Точная ошибка БД: {str(e)}")
+                    messages.error(request, f"Точная ошибка БД: {e!s}")
 
         # 4. Удаление группы
-        elif action == 'delete_group':
-            group_id = request.POST.get('group_id')
+        elif action == "delete_group":
+            group_id = request.POST.get("group_id")
             group = get_object_or_404(groups, id=group_id)
-            is_leader = climber_members.objects.filter(climber_id=current_climber, groups_id=group, role=True).exists()
-            
+            is_leader = climber_members.objects.filter(
+                climber_id=current_climber, groups_id=group, role=True
+            ).exists()
+
             if not request.user.is_staff and not is_leader:
                 messages.error(request, "Ошибка удаления: недостаточно прав.")
             else:
                 try:
-                    for rel in ['climber_members', 'climbs']:
+                    for rel in ["climber_members", "climbs"]:
                         try:
                             getattr(group, rel).all().delete()
                         except Exception:
@@ -211,48 +260,69 @@ def home(request):
                     messages.error(request, f"Ошибка удаления группы: {e}")
 
         # 5. Запись в группу
-        elif action == 'join_group':
-            group_id = request.POST.get('group_id')
+        elif action == "join_group":
+            group_id = request.POST.get("group_id")
             try:
                 group = groups.objects.get(id=group_id)
                 mountain = group.mountain_id
 
                 # Проверка: подходит ли разряд?
                 if not can_climb(current_climber, mountain):
-                    messages.error(request,
+                    messages.error(
+                        request,
                         f"Ваш разряд ({current_climber.sports_category}) недостаточен "
-                        f"для горы {mountain.name} ({mountain.difficulty})")
-                    return redirect('/home/')
+                        f"для горы {mountain.name} ({mountain.difficulty})",
+                    )
+                    return redirect("/home/")
 
-                if climber_members.objects.filter(climber_id=current_climber, groups_id=group).exists():
-                    messages.error(request, 'Вы уже записаны в эту группу!')
-                elif climber_members.objects.filter(groups_id=group).count() >= group.max_members:
-                    messages.error(request, f'Достигнут лимит участников!')
+                if climber_members.objects.filter(
+                    climber_id=current_climber, groups_id=group
+                ).exists():
+                    messages.error(request, "Вы уже записаны в эту группу!")
+                elif (
+                    climber_members.objects.filter(groups_id=group).count()
+                    >= group.max_members
+                ):
+                    messages.error(request, "Достигнут лимит участников!")
                 else:
                     climber_members.objects.create(
                         climber_id=current_climber,
                         groups_id=group,
                         role=False,
-                        joined_date=timezone.now()
+                        joined_date=timezone.now(),
                     )
                     messages.success(request, f'Вы записались в "{group.name}"!')
             except Exception as e:
                 messages.error(request, f"Ошибка: {e}")
 
-        return redirect('/home/')
-        
-    all_groups = groups.objects.select_related('mountain_id').all()
-    
+        return redirect("/home/")
+
+    all_groups = groups.objects.select_related("mountain_id").all()
+
     for g in all_groups:
         g.safe_date = "Не указана"
-        for df in ['date_formation', 'start_event', 'date_start', 'date', 'created_at', 'start_time']:
+        for df in [
+            "date_formation",
+            "start_event",
+            "date_start",
+            "date",
+            "created_at",
+            "start_time",
+        ]:
             if hasattr(g, df) and getattr(g, df):
                 g.safe_date = getattr(g, df)
                 break
-                
+
         g.safe_difficulty = "Стандарт"
         if g.mountain_id:
-            for mf in ['recommended_category', 'recommended_rank', 'razryad', 'category', 'difficulty', 'рекомендуемый_разряд']:
+            for mf in [
+                "recommended_category",
+                "recommended_rank",
+                "razryad",
+                "category",
+                "difficulty",
+                "рекомендуемый_разряд",
+            ]:
                 if hasattr(g.mountain_id, mf) and getattr(g.mountain_id, mf):
                     g.safe_difficulty = getattr(g.mountain_id, mf)
                     break
@@ -262,7 +332,7 @@ def home(request):
         raw_ascents = climbs.objects.all()
         for asc in raw_ascents:
             asc.safe_result = "Успех"
-            for rf in ['результат', 'result', 'status', 'success']:
+            for rf in ["результат", "result", "status", "success"]:
                 if hasattr(asc, rf) and getattr(asc, rf) is not None:
                     val = getattr(asc, rf)
                     if isinstance(val, bool):
@@ -270,87 +340,107 @@ def home(request):
                     else:
                         asc.safe_result = str(val)
                     break
-                    
+
             asc.safe_grade = "5"
-            for gf in ['оценка', 'grade', 'evaluation', 'score', 'ball']:
+            for gf in ["оценка", "grade", "evaluation", "score", "ball"]:
                 if hasattr(asc, gf) and getattr(asc, gf) is not None:
                     asc.safe_grade = getattr(asc, gf)
                     break
-                    
+
             asc.safe_comment = "Отчёт сохранён"
-            for cf in ['комментарий', 'comment', 'description', 'summary']:
+            for cf in ["комментарий", "comment", "description", "summary"]:
                 if hasattr(asc, cf) and getattr(asc, cf) is not None:
                     asc.safe_comment = getattr(asc, cf)
                     break
 
             asc.safe_time = "Не указано"
-            for tf in ['date_time_start', 'date_start', 'start_event', 'date', 'datetime', 'start_time']:
+            for tf in [
+                "date_time_start",
+                "date_start",
+                "start_event",
+                "date",
+                "datetime",
+                "start_time",
+            ]:
                 if hasattr(asc, tf) and getattr(asc, tf) is not None:
                     asc.safe_time = getattr(asc, tf)
                     break
-                    
+
             all_ascents.append(asc)
     except Exception:
         all_ascents = []
 
-    user_group_ids = list(climber_members.objects.filter(climber_id=current_climber).values_list('groups_id_id', flat=True))
-    all_members = climber_members.objects.select_related('climber_id', 'groups_id').all()
-    leader_group_ids = list(climber_members.objects.filter(climber_id=current_climber, role=True).values_list('groups_id_id', flat=True))
+    user_group_ids = list(
+        climber_members.objects.filter(climber_id=current_climber).values_list(
+            "groups_id_id", flat=True
+        )
+    )
+    all_members = climber_members.objects.select_related(
+        "climber_id", "groups_id"
+    ).all()
+    leader_group_ids = list(
+        climber_members.objects.filter(
+            climber_id=current_climber, role=True
+        ).values_list("groups_id_id", flat=True)
+    )
 
     context = {
-        'mountains_list': mountains.objects.all(),
-        'groups_list': all_groups,
-        'user_group_ids': user_group_ids,
-        'leader_group_ids': leader_group_ids,
-        'current_climber': current_climber,
-        'all_members': all_members,
-        'all_ascents': all_ascents,
+        "mountains_list": mountains.objects.all(),
+        "groups_list": all_groups,
+        "user_group_ids": user_group_ids,
+        "leader_group_ids": leader_group_ids,
+        "current_climber": current_climber,
+        "all_members": all_members,
+        "all_ascents": all_ascents,
     }
-    return render(request, './pages/home.html', context)
+    return render(request, "./pages/home.html", context)
+
 
 def login_page(request):
     response = health_check(request)
-    if response.status_code!=200: return response
+    if response.status_code != 200:
+        return response
     if request.method == "POST":
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+        username = request.POST.get("username")
+        password = request.POST.get("password")
 
         if not User.objects.filter(username=username).exists():
-            messages.error(request, 'Invalid Username')
-            return redirect('/login/')
+            messages.error(request, "Invalid Username")
+            return redirect("/login/")
         user = authenticate(username=username, password=password)
         if user is None:
             messages.error(request, "Invalid Password")
-            return redirect('/login/')
+            return redirect("/login/")
         else:
             login(request, user)
-            return redirect('/home/')
+            return redirect("/home/")
 
-    return render(request, './pages/login.html')
+    return render(request, "./pages/login.html")
+
 
 def register_page(request):
-    response =  health_check(request)
-    if response.status_code!=200: return response
-    if request.method == 'POST':
-        first_name = request.POST.get('first_name')
-        last_name = request.POST.get('last_name')
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        
+    response = health_check(request)
+    if response.status_code != 200:
+        return response
+    if request.method == "POST":
+        first_name = request.POST.get("first_name")
+        last_name = request.POST.get("last_name")
+        username = request.POST.get("username")
+        password = request.POST.get("password")
+
         if User.objects.filter(username=username).exists():
             messages.info(request, "Username already taken!")
-            return redirect('/register/')
-        
+            return redirect("/register/")
 
         User.objects.create_user(
-        first_name=first_name,
-        last_name=last_name,
-        username=username,
-        password=password
+            first_name=first_name,
+            last_name=last_name,
+            username=username,
+            password=password,
         )
         messages.info(request, "Account created Successfully! Please login.")
-        return redirect('/login/')
-    return render(request, './pages/register.html')
+        return redirect("/login/")
+    return render(request, "./pages/register.html")
 
 
 def attestation_view(request):
@@ -358,62 +448,64 @@ def attestation_view(request):
     current_climber = request.user.climber
     can_attest_now = can_attest(current_climber)
 
-    if request.method == 'POST':
-        action = request.POST.get('action')
+    if request.method == "POST":
+        action = request.POST.get("action")
 
-        if action == 'request_attestation':
+        if action == "request_attestation":
             if not can_attest_now:
                 messages.error(request, "Ещё рано проходить аттестацию!")
             else:
-                target_rank = request.POST.get('target_rank')
+                target_rank = request.POST.get("target_rank")
                 Attestation.objects.create(
-                    climber=current_climber,
-                    target_rank=target_rank,
-                    status='pending'
+                    climber=current_climber, target_rank=target_rank, status="pending"
                 )
                 messages.success(request, "Заявка создана!")
 
-        elif action == 'submit_results':
-            attestation_id = request.POST.get('attestation_id')
+        elif action == "submit_results":
+            attestation_id = request.POST.get("attestation_id")
             attestation = get_object_or_404(Attestation, id=attestation_id)
 
-            attestation.pullups = int(request.POST.get('pullups', 0) or 0)
-            attestation.rope_climbing = int(request.POST.get('rope_climbing', 0) or 0)
-            attestation.pushups = int(request.POST.get('pushups', 0) or 0)
-            attestation.squats = int(request.POST.get('squats', 0) or 0)
-            attestation.back_bends = int(request.POST.get('back_bends', 0) or 0)
-            attestation.cross_10km = int(request.POST.get('cross_10km', 0) or 0)
-            attestation.shuttle_run = int(request.POST.get('shuttle_run', 0) or 0)
-            attestation.hang = int(request.POST.get('hang', 0) or 0)
+            attestation.pullups = int(request.POST.get("pullups", 0) or 0)
+            attestation.rope_climbing = int(request.POST.get("rope_climbing", 0) or 0)
+            attestation.pushups = int(request.POST.get("pushups", 0) or 0)
+            attestation.squats = int(request.POST.get("squats", 0) or 0)
+            attestation.back_bends = int(request.POST.get("back_bends", 0) or 0)
+            attestation.cross_10km = int(request.POST.get("cross_10km", 0) or 0)
+            attestation.shuttle_run = int(request.POST.get("shuttle_run", 0) or 0)
+            attestation.hang = int(request.POST.get("hang", 0) or 0)
 
             rank = process_attestation(attestation)
             if rank:
                 messages.success(request, f"Аттестация пройдена! Разряд: {rank}")
             else:
                 messages.error(request, "Нормативы не выполнены.")
-            return redirect('attestation')
+            return redirect("attestation")
 
     last_attestation = Attestation.objects.filter(
-        climber=current_climber, status='passed'
+        climber=current_climber, status="passed"
     ).first()
 
     results_json = None
     if last_attestation:
         results_json = {
-            'pullups': last_attestation.pullups,
-            'rope_climbing': last_attestation.rope_climbing,
-            'pushups': last_attestation.pushups,
-            'squats': last_attestation.squats,
-            'back_bends': last_attestation.back_bends,
-            'cross_10km': last_attestation.cross_10km,
-            'shuttle_run': last_attestation.shuttle_run,
-            'hang': last_attestation.hang,
+            "pullups": last_attestation.pullups,
+            "rope_climbing": last_attestation.rope_climbing,
+            "pushups": last_attestation.pushups,
+            "squats": last_attestation.squats,
+            "back_bends": last_attestation.back_bends,
+            "cross_10km": last_attestation.cross_10km,
+            "shuttle_run": last_attestation.shuttle_run,
+            "hang": last_attestation.hang,
         }
 
-    return render(request, './pages/attestation.html', {
-        'current_climber': current_climber,
-        'can_attest': can_attest_now,
-        'normals_json': NORMALS,
-        'results_json': results_json,
-        'attestations': Attestation.objects.filter(climber=current_climber),
-    })
+    return render(
+        request,
+        "./pages/attestation.html",
+        {
+            "current_climber": current_climber,
+            "can_attest": can_attest_now,
+            "normals_json": NORMALS,
+            "results_json": results_json,
+            "attestations": Attestation.objects.filter(climber=current_climber),
+        },
+    )

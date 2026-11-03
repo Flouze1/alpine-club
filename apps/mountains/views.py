@@ -1,5 +1,6 @@
-from rest_framework import viewsets, status
+from rest_framework import status, viewsets
 from rest_framework.response import Response
+
 from .models import mountains
 from .serializers import MountainSerializer
 
@@ -14,7 +15,6 @@ class MountainViewSet(viewsets.ModelViewSet):
 
         if groups.objects.filter(mountain_id=mountain).exists():
             return Response(
-                {"error": "Нельзя удалить гору"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Нельзя удалить гору"}, status=status.HTTP_400_BAD_REQUEST
             )
         return super().destroy(request, *args, **kwargs)

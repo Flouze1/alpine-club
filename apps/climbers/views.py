@@ -1,8 +1,9 @@
-from rest_framework import viewsets, status
-from rest_framework.response import Response
+from rest_framework import status, viewsets
 from rest_framework.exceptions import ValidationError
-from .models import climbers, groups, climber_members
-from .serializers import ClimberSerializer, GroupSerializer, GroupMemberSerializer
+from rest_framework.response import Response
+
+from .models import climber_members, climbers, groups
+from .serializers import ClimberSerializer, GroupMemberSerializer, GroupSerializer
 
 
 class ClimberViewSet(viewsets.ModelViewSet):
@@ -13,8 +14,10 @@ class ClimberViewSet(viewsets.ModelViewSet):
         climber = self.get_object()
         if groups.objects.filter(leader_id=climber).exists():
             return Response(
-                {'error': 'Нельзя удалить альпиниста, который является руководителем группы'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    "error": "Нельзя удалить альпиниста, который является руководителем группы"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
         return super().destroy(request, *args, **kwargs)
 
@@ -26,10 +29,10 @@ class GroupViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         group = self.get_object()
         from apps.climbers.models import groups
+
         if groups.objects.filter(group_id=group).exists():
             return Response(
-                {'error': 'Нельзя удалить группу'},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Нельзя удалить группу"}, status=status.HTTP_400_BAD_REQUEST
             )
         return super().destroy(request, *args, **kwargs)
 
@@ -38,13 +41,12 @@ class GroupMemberViewSet(viewsets.ModelViewSet):
     queryset = climber_members.objects.all()
     serializer_class = GroupMemberSerializer
 
-
     def perform_create(self, serializer):
-        climber = serializer.validated_data.get('climber_id')
-        role = serializer.validated_data.get('role')
+        climber = serializer.validated_data.get("climber_id")
+        role = serializer.validated_data.get("role")
 
-        if not(role and climber.schoole and climber.test):
+        if not (role and climber.schoole and climber.test):
             raise ValidationError(
-                'Только альпинист, прошедший школу и тест, может быть руководителем'
+                "Только альпинист, прошедший школу и тест, может быть руководителем"
             )
         serializer.save()
