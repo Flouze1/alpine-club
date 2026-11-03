@@ -9,6 +9,9 @@ pipeline {
         DB_USER     = 'testuser'
         DB_PASSWORD = 'testpassword'
         MYSQL_ROOT_PASSWORD = 'rootpassword'
+        
+        // Имя образа для локального Docker Hub
+        IMAGE_NAME  = 'localhost:5000/alpine-club'
     }
 
     stages {
@@ -29,8 +32,6 @@ pipeline {
 
         stage('Start Test DB') {
             steps {
-                // Поднимаем контейнер с тестовой БД. 
-                // Добавлен флаг mysql_native_password для совместимости с PyMySQL
                 sh '''
                   docker rm -f alpine-test-db || true
                   docker run -d --name alpine-test-db \
@@ -54,26 +55,22 @@ pipeline {
 
         stage('Quality (Style & Security)') {
             steps {
-                // Вызов вашей make-команды (Пункт 4)
                 sh '. venv/bin/activate && make quality'
             }
         }
 
         stage('Migrations') {
             steps {
-                // Вызов вашей make-команды (Пункт 4)
                 sh '. venv/bin/activate && make migrate'
             }
         }
 
         stage('Tests') {
             steps {
-                // Вызов вашей make-команды (Пункт 4)
                 sh '. venv/bin/activate && make test'
             }
             post {
                 always {
-                    // Сохранение отчетов (Пункт 7)
                     junit testResults: 'reports/*.xml', allowEmptyResults: true
                     archiveArtifacts artifacts: 'coverage.xml, coverage_html/**', allowEmptyArchive: true
                 }
@@ -82,12 +79,45 @@ pipeline {
 
         stage('Backup DB') {
             steps {
-                // Вызов вашей make-команды (Пункт 5)
-                sh '. venv/bin/activate && make backup'
+                // Исправлено: mysqldump выполняется ВНУТРИ контейнера с БД
+                sh '''
+                  docker exec alpine-test-db mysqldump \
+                    -u${DB_USER} -p${DB_PASSWORD} ${DB_NAME} > backup.sql
+                  gzip -f backup.sql
+                '''
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'backups/*.sql', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'backup.sql.gz', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Container Check') {
+            steps {
+                // Проверка Dockerfile и сборка тестового образа (Пункт 5)
+                sh 'docker build -t alpine-club:check .'
+            }
+        }
+
+        stage('Build & Publish') {
+            // Публикация ТОЛЬКО для ветки main (Пункт 10)
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    // Получаем короткий SHA коммита для тега (Пункт 9)
+                    def sha = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    def image = "${IMAGE_NAME}:${sha}"
+                    
+                    // Собираем финальный образ
+                    sh "docker build -t ${image} ."
+                    
+                    // Отправляем в локальный Docker Hub (если у вас настроен registry:2 на порту 5000)
+                    // Если registry без пароля, логин не нужен
+                    sh "docker push ${image}"
+                    echo "Successfully published: ${image}"
                 }
             }
         }
@@ -97,6 +127,9 @@ pipeline {
         always {
             // Очистка контейнера после завершения
             sh 'docker rm -f alpine-test-db || true'
+        }
+        failure {
+            echo 'Пайплайн упал. Публикация образа отменена (если была).'
         }
     }
 }
