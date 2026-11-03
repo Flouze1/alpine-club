@@ -14,9 +14,7 @@ class ClimberViewSet(viewsets.ModelViewSet):
         climber = self.get_object()
         if groups.objects.filter(leader_id=climber).exists():
             return Response(
-                {
-                    "error": "Нельзя удалить альпиниста, который является руководителем группы"
-                },
+                {"error": "Нельзя удалить альпиниста, который является руководителем группы"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return super().destroy(request, *args, **kwargs)
@@ -31,9 +29,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         from apps.climbers.models import groups
 
         if groups.objects.filter(group_id=group).exists():
-            return Response(
-                {"error": "Нельзя удалить группу"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Нельзя удалить группу"}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
 
 
@@ -46,7 +42,5 @@ class GroupMemberViewSet(viewsets.ModelViewSet):
         role = serializer.validated_data.get("role")
 
         if not (role and climber.schoole and climber.test):
-            raise ValidationError(
-                "Только альпинист, прошедший школу и тест, может быть руководителем"
-            )
+            raise ValidationError("Только альпинист, прошедший школу и тест, может быть руководителем")
         serializer.save()

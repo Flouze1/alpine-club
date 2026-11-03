@@ -34,9 +34,7 @@ def health_check(request=None):
         db_conn.cursor()
         return JsonResponse({"status": "ok"}, status=200)
     except (OperationalError, DatabaseError, Exception):
-        return JsonResponse(
-            {"status": "error", "message": "Database disconnected"}, status=503
-        )
+        return JsonResponse({"status": "error", "message": "Database disconnected"}, status=503)
 
 
 def home(request):
@@ -51,9 +49,7 @@ def home(request):
 
         # 1. Создание группы
         if action == "create_group":
-            if not request.user.is_staff and not (
-                current_climber.schoole and current_climber.test
-            ):
+            if not request.user.is_staff and not (current_climber.schoole and current_climber.test):
                 messages.error(request, "Ошибка: У вас нет прав на создание группы.")
             else:
                 name = request.POST.get("name")
@@ -66,9 +62,7 @@ def home(request):
                     mountain = mountains.objects.get(id=mountain_id)
 
                     if date_str and time_str:
-                        date_val = datetime.strptime(
-                            f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
-                        )
+                        date_val = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
                     elif date_str:
                         date_val = datetime.strptime(date_str, "%Y-%m-%d")
                     else:
@@ -96,9 +90,7 @@ def home(request):
                             continue
 
                     if not new_group:
-                        new_group = groups.objects.create(
-                            name=name, mountain_id=mountain, max_members=max_members
-                        )
+                        new_group = groups.objects.create(name=name, mountain_id=mountain, max_members=max_members)
 
                     climber_members.objects.create(
                         climber_id=current_climber,
@@ -114,9 +106,7 @@ def home(request):
         elif action == "edit_group":
             group_id = request.POST.get("group_id")
             group = get_object_or_404(groups, id=group_id)
-            is_leader = climber_members.objects.filter(
-                climber_id=current_climber, groups_id=group, role=True
-            ).exists()
+            is_leader = climber_members.objects.filter(climber_id=current_climber, groups_id=group, role=True).exists()
 
             if not request.user.is_staff and not is_leader:
                 messages.error(
@@ -132,9 +122,7 @@ def home(request):
                 if new_date:
                     try:
                         if new_time:
-                            final_dt = datetime.strptime(
-                                f"{new_date} {new_time}", "%Y-%m-%d %H:%M"
-                            )
+                            final_dt = datetime.strptime(f"{new_date} {new_time}", "%Y-%m-%d %H:%M")
                         else:
                             final_dt = datetime.strptime(new_date, "%Y-%m-%d")
 
@@ -159,14 +147,10 @@ def home(request):
         elif action == "create_ascent":
             group_id = request.POST.get("group_id")
             group = get_object_or_404(groups, id=group_id)
-            is_leader = climber_members.objects.filter(
-                climber_id=current_climber, groups_id=group, role=True
-            ).exists()
+            is_leader = climber_members.objects.filter(climber_id=current_climber, groups_id=group, role=True).exists()
 
             if not request.user.is_staff and not is_leader:
-                messages.error(
-                    request, "Ошибка: Отчёт может заполнять только руководитель!"
-                )
+                messages.error(request, "Ошибка: Отчёт может заполнять только руководитель!")
             else:
                 date_str = request.POST.get("date_start")
                 time_str = request.POST.get("time_start")
@@ -176,9 +160,7 @@ def home(request):
 
                 try:
                     if date_str and time_str:
-                        dt_val = datetime.strptime(
-                            f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
-                        )
+                        dt_val = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
                     elif date_str:
                         dt_val = datetime.strptime(date_str, "%Y-%m-%d")
                     else:
@@ -214,9 +196,7 @@ def home(request):
                     if reports:
                         try:
                             report_kwargs = {
-                                "climb_id": new_climb
-                                if hasattr(reports, "climb_id")
-                                else None,
+                                "climb_id": new_climb if hasattr(reports, "climb_id") else None,
                                 "summary": comment_val or "",
                                 "success": result_val,
                             }
@@ -232,9 +212,7 @@ def home(request):
         elif action == "delete_group":
             group_id = request.POST.get("group_id")
             group = get_object_or_404(groups, id=group_id)
-            is_leader = climber_members.objects.filter(
-                climber_id=current_climber, groups_id=group, role=True
-            ).exists()
+            is_leader = climber_members.objects.filter(climber_id=current_climber, groups_id=group, role=True).exists()
 
             if not request.user.is_staff and not is_leader:
                 messages.error(request, "Ошибка удаления: недостаточно прав.")
@@ -275,14 +253,9 @@ def home(request):
                     )
                     return redirect("/home/")
 
-                if climber_members.objects.filter(
-                    climber_id=current_climber, groups_id=group
-                ).exists():
+                if climber_members.objects.filter(climber_id=current_climber, groups_id=group).exists():
                     messages.error(request, "Вы уже записаны в эту группу!")
-                elif (
-                    climber_members.objects.filter(groups_id=group).count()
-                    >= group.max_members
-                ):
+                elif climber_members.objects.filter(groups_id=group).count() >= group.max_members:
                     messages.error(request, "Достигнут лимит участников!")
                 else:
                     climber_members.objects.create(
@@ -371,17 +344,11 @@ def home(request):
         all_ascents = []
 
     user_group_ids = list(
-        climber_members.objects.filter(climber_id=current_climber).values_list(
-            "groups_id_id", flat=True
-        )
+        climber_members.objects.filter(climber_id=current_climber).values_list("groups_id_id", flat=True)
     )
-    all_members = climber_members.objects.select_related(
-        "climber_id", "groups_id"
-    ).all()
+    all_members = climber_members.objects.select_related("climber_id", "groups_id").all()
     leader_group_ids = list(
-        climber_members.objects.filter(
-            climber_id=current_climber, role=True
-        ).values_list("groups_id_id", flat=True)
+        climber_members.objects.filter(climber_id=current_climber, role=True).values_list("groups_id_id", flat=True)
     )
 
     context = {
@@ -456,9 +423,7 @@ def attestation_view(request):
                 messages.error(request, "Ещё рано проходить аттестацию!")
             else:
                 target_rank = request.POST.get("target_rank")
-                Attestation.objects.create(
-                    climber=current_climber, target_rank=target_rank, status="pending"
-                )
+                Attestation.objects.create(climber=current_climber, target_rank=target_rank, status="pending")
                 messages.success(request, "Заявка создана!")
 
         elif action == "submit_results":
@@ -481,9 +446,7 @@ def attestation_view(request):
                 messages.error(request, "Нормативы не выполнены.")
             return redirect("attestation")
 
-    last_attestation = Attestation.objects.filter(
-        climber=current_climber, status="passed"
-    ).first()
+    last_attestation = Attestation.objects.filter(climber=current_climber, status="passed").first()
 
     results_json = None
     if last_attestation:

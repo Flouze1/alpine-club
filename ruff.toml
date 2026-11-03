@@ -1,12 +1,14 @@
 line-length = 120
 exclude = ["venv", "migrations", "staticfiles"]
 
+[lint]
 ignore = [
-    "N999",   # Invalid module name (дефис в названии папки)
+    "N999",   # Invalid module name
     "RUF012", # Mutable default value for class attribute
     "BLE001", # Do not catch blind exception: Exception
     "S110",   # try-except-pass
     "S112",   # try-except-continue
     "F811",   # Redefinition of unused name
     "F401",   # Unused imports
+    "EXE001", # Shebang is present but file is not executable
 ]

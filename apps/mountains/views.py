@@ -14,7 +14,5 @@ class MountainViewSet(viewsets.ModelViewSet):
         from apps.climbers.models import groups
 
         if groups.objects.filter(mountain_id=mountain).exists():
-            return Response(
-                {"error": "Нельзя удалить гору"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Нельзя удалить гору"}, status=status.HTTP_400_BAD_REQUEST)
         return super().destroy(request, *args, **kwargs)
