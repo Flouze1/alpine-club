@@ -1,4 +1,4 @@
-include .env
+-include .env
 export
 
 .PHONY: setup run test quality migrate backup restore verify container-check up down c-migrate c-backup c-restore
