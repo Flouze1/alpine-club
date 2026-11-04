@@ -116,7 +116,7 @@ pipeline {
                     
                     // Отправляем в локальный Docker Hub (если у вас настроен registry:2 на порту 5000)
                     // Если registry без пароля, логин не нужен
-                    sh "docker push ${image}"
+                    //sh "docker push ${image}"
                     echo "Successfully published: ${image}"
                 }
             }
