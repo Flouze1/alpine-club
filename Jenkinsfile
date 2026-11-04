@@ -82,7 +82,7 @@ pipeline {
                 // Исправлено: mysqldump выполняется ВНУТРИ контейнера с БД
                 sh '''
                   docker exec alpine-test-db mysqldump \
-                    -u${DB_USER} -p${DB_PASSWORD} ${DB_NAME} > backup.sql
+                     --no-tablespaces -u${DB_USER} -p${DB_PASSWORD} ${DB_NAME} > backup.sql
                   gzip -f backup.sql
                 '''
             }
