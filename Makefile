@@ -14,8 +14,11 @@ run:
 	$(PYTHON) manage.py runserver 0.0.0.0:8000
 
 test:
+	mkdir -p reports
 	@if [ -f ./venv/bin/coverage ]; then \
 		./venv/bin/coverage run manage.py test apps.accounts --settings=alpine_club.test_settings && \
+		./venv/bin/coverage xml -o reports/coverage.xml && \
+		./venv/bin/coverage html -d reports/coverage_html && \
 		./venv/bin/coverage report -m --fail-under=40; \
 	else \
 		$(PYTHON) manage.py test apps.accounts --settings=alpine_club.test_settings --verbosity=2; \
