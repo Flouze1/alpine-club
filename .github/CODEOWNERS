@@ -1,0 +1,5 @@
+/Jenkinsfile          @Flouze1
+/Makefile             @Flouze1
+/ruff.toml            @Flouze1
+/apps/**/test*.py     @Flouze1
+/docker-compose.yml   @Flouze1
