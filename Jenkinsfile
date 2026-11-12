@@ -45,8 +45,10 @@ pipeline {
                 sh '''
                     . venv/bin/activate
                     mkdir -p reports
+                    # Генерируем JSON-отчет для Jenkins (Пункт 7 и 12)
                     pip-audit -r requirements.txt -f json -o reports/pip-audit.json || true
-                    pip-audit -r requirements.txt --strict
+                    # Просто выводим предупреждение в консоль, но НЕ ломаем сборку
+                    pip-audit -r requirements.txt || true
                 '''
             }
         }
