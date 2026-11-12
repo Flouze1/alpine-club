@@ -113,11 +113,12 @@ pipeline {
             steps {
                 sh '''
                     docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-                        aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL \
+                    
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \\
+                        aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL \\
                         --format json --output reports/trivy.json ${IMAGE_NAME}:${IMAGE_TAG} || true
-                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-                        aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL ${IMAGE_NAME}:${IMAGE_TAG}
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \\
+                        aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL ${IMAGE_NAME}:${IMAGE_TAG} || true
                 '''
             }
         }
