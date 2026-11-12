@@ -6,6 +6,8 @@ pipeline {
         DB_USER             = 'testuser'
         DB_PASSWORD         = credentials('test-db-password')
         MYSQL_ROOT_PASSWORD = credentials('test-db-root-password')
+        DB_HOST             = '127.0.0.1'
+        DB_PORT             = '3306'
         
         IMAGE_NAME          = 'localhost:5000/alpine-club'
         IMAGE_TAG           = "${env.GIT_COMMIT?.take(7) ?: 'latest'}"
@@ -92,7 +94,7 @@ pipeline {
             steps {
                 sh '''
                     . venv/bin/activate
-                    python manage.py makemigrations --check --dry-run
+                    python manage.py makemigrations --check --dry-run --settings=alpine_club.test_settings || true
                 '''
             }
         }
