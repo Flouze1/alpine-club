@@ -198,9 +198,9 @@ pipeline {
                 script {
                     env.TARGET_TAG = params.DEPLOY_TAG?.trim() ? params.DEPLOY_TAG.trim() : env.PUBLISHED_TAG
                 }
-                sshagent(['deploy-credentials']) {
+                withCredentials([sshUserPrivateKey(credentialsId: 'deploy-credentials', keyFileVariable: 'SSH_KEY_FILE')]) {
                     sh """
-                        ssh deploy@hiplet-136600 "cd /opt/staging && APP_VERSION=${TARGET_TAG} docker compose --env-file /opt/staging/.env.staging -f /opt/staging/docker-compose.staging.yml pull && APP_VERSION=${TARGET_TAG} docker compose --env-file /opt/staging/.env.staging -f /opt/staging/docker-compose.staging.yml up -d"
+                        ssh -i "\$SSH_KEY_FILE" -o StrictHostKeyChecking=no deploy@hiplet-136600 "cd /opt/staging && APP_VERSION=${TARGET_TAG} docker compose --env-file /opt/staging/.env.staging -f /opt/staging/docker-compose.staging.yml pull && APP_VERSION=${TARGET_TAG} docker compose --env-file /opt/staging/.env.staging -f /opt/staging/docker-compose.staging.yml up -d"
                     """
                 }
             }
@@ -211,9 +211,9 @@ pipeline {
                 expression { env.TARGET_TAG?.trim() != '' }
             }
             steps {
-                sshagent(['deploy-credentials']) {
+                withCredentials([sshUserPrivateKey(credentialsId: 'deploy-credentials', keyFileVariable: 'SSH_KEY_FILE')]) {
                     sh """
-                        ssh deploy@hiplet-136600 "set -euo pipefail && cd /opt/staging && docker compose --env-file /opt/staging/.env.staging -f /opt/staging/docker-compose.staging.yml ps && VER_RESP=\\\$(curl -fsS http://127.0.0.1/version) && echo \\\"\\\$VER_RESP\\\" && echo \\\"\\\$VER_RESP\\\" | grep -q '${TARGET_TAG}' && PAGE_CODE=\\\$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/login/) && test \\\"\\\$PAGE_CODE\\\" -eq 200 -o \\\"\\\$PAGE_CODE\\\" -eq 302"
+                        ssh -i "\$SSH_KEY_FILE" -o StrictHostKeyChecking=no deploy@hiplet-136600 "set -euo pipefail && cd /opt/staging && docker compose --env-file /opt/staging/.env.staging -f /opt/staging/docker-compose.staging.yml ps && VER_RESP=\\\$(curl -fsS http://127.0.0.1/version) && echo \\\"\\\$VER_RESP\\\" && echo \\\"\\\$VER_RESP\\\" | grep -q '${TARGET_TAG}' && PAGE_CODE=\\\$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/login/) && test \\\"\\\$PAGE_CODE\\\" -eq 200 -o \\\"\\\$PAGE_CODE\\\" -eq 302"
                     """
                 }
             }
