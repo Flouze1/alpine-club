@@ -1,6 +1,18 @@
 pipeline {
     agent any
 
+    options {
+        disableConcurrentBuilds()
+    }
+
+    parameters {
+        string(
+            name: 'DEPLOY_TAG',
+            defaultValue: '',
+            description: 'Конкретный тег образа для выката или ручного возврата предыдущей версии'
+        )
+    }
+
     environment {
         DB_NAME             = 'test_alpine_club'
         DB_USER             = 'testuser'
@@ -20,6 +32,9 @@ pipeline {
         }
 
         stage('Secret Scan (Gitleaks)') {
+            when {
+                expression { !params.DEPLOY_TAG?.trim() }
+            }
             steps {
                 sh '''
                     mkdir -p reports
@@ -30,6 +45,9 @@ pipeline {
         }
 
         stage('Setup & Cache Dependencies') {
+            when {
+                expression { !params.DEPLOY_TAG?.trim() }
+            }
             steps {
                 sh '''
                     mkdir -p .cache/pip
@@ -43,6 +61,9 @@ pipeline {
         }
 
         stage('Dependency Check') {
+            when {
+                expression { !params.DEPLOY_TAG?.trim() }
+            }
             steps {
                 sh '''
                     . venv/bin/activate
@@ -56,6 +77,9 @@ pipeline {
         }
 
         stage('Start Test DB') {
+            when {
+                expression { !params.DEPLOY_TAG?.trim() }
+            }
             steps {
                 sh '''
                     docker rm -f alpine-test-db || true
@@ -79,6 +103,9 @@ pipeline {
         }
 
         stage('Quality & Tests') {
+            when {
+                expression { !params.DEPLOY_TAG?.trim() }
+            }
             steps {
                 sh '''
                     . venv/bin/activate
@@ -91,6 +118,9 @@ pipeline {
         }
 
         stage('Migrations Check') {
+            when {
+                expression { !params.DEPLOY_TAG?.trim() }
+            }
             steps {
                 sh '''
                     . venv/bin/activate
@@ -100,6 +130,9 @@ pipeline {
         }
 
         stage('Backup Test DB') {
+            when {
+                expression { !params.DEPLOY_TAG?.trim() }
+            }
             steps {
                 sh '''
                     mkdir -p reports
@@ -110,6 +143,9 @@ pipeline {
         }
 
         stage('Container Build & Scan') {
+            when {
+                expression { !params.DEPLOY_TAG?.trim() }
+            }
             steps {
                 sh '''
                     docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
@@ -125,11 +161,60 @@ pipeline {
 
         stage('Publish Image') {
             when {
-                branch 'main'
+                allOf {
+                    expression { !params.DEPLOY_TAG?.trim() }
+                    anyOf {
+                        branch 'main'
+                        buildingTag()
+                    }
+                }
+            }
+            steps {
+                sh '''
+                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                '''
+                script {
+                    env.PUBLISHED_TAG = env.IMAGE_TAG
+                    echo "Все проверки пройдены. Публикация образа: ${IMAGE_NAME}:${PUBLISHED_TAG}"
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                anyOf {
+                    expression { params.DEPLOY_TAG?.trim() != '' }
+                    allOf {
+                        branch 'main'
+                        expression { env.PUBLISHED_TAG?.trim() != '' }
+                    }
+                    allOf {
+                        buildingTag()
+                        expression { env.PUBLISHED_TAG?.trim() != '' }
+                    }
+                }
             }
             steps {
                 script {
-                    echo "Все проверки пройдены. Публикация образа: ${IMAGE_NAME}:${IMAGE_TAG}"
+                    env.TARGET_TAG = params.DEPLOY_TAG?.trim() ? params.DEPLOY_TAG.trim() : env.PUBLISHED_TAG
+                }
+                sshagent(['deploy-credentials']) {
+                    sh """
+                        ssh deploy@hiplet-136600 "cd /opt/staging && APP_VERSION=${TARGET_TAG} docker compose --env-file /opt/staging/.env.staging -f /opt/staging/docker-compose.staging.yml pull && APP_VERSION=${TARGET_TAG} docker compose --env-file /opt/staging/.env.staging -f /opt/staging/docker-compose.staging.yml up -d"
+                    """
+                }
+            }
+        }
+
+        stage('Verify Release') {
+            when {
+                expression { env.TARGET_TAG?.trim() != '' }
+            }
+            steps {
+                sshagent(['deploy-credentials']) {
+                    sh """
+                        ssh deploy@hiplet-136600 "set -euo pipefail && cd /opt/staging && docker compose --env-file /opt/staging/.env.staging -f /opt/staging/docker-compose.staging.yml ps && VER_RESP=\\\$(curl -fsS http://127.0.0.1/version) && echo \\\"\\\$VER_RESP\\\" && echo \\\"\\\$VER_RESP\\\" | grep -q '${TARGET_TAG}' && PAGE_CODE=\\\$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/login/) && test \\\"\\\$PAGE_CODE\\\" -eq 200 -o \\\"\\\$PAGE_CODE\\\" -eq 302"
+                    """
                 }
             }
         }

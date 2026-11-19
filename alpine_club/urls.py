@@ -8,7 +8,7 @@ from apps.accounts.views import home, login_page, register_page
 from apps.ascents.views import AscentViewSet
 from apps.climbers.views import ClimberViewSet, GroupMemberViewSet, GroupViewSet
 from apps.mountains.views import MountainViewSet
-
+from .version_view import version_view
 
 # ===== Служебные функции =====
 def health_check(request):
@@ -28,6 +28,7 @@ def root(request):
                 "admin": "/admin/",
                 "api": "/api/",
                 "health": "/health/",
+		"version": "/version/",
                 "home": "/home/",
                 "login": "/login/",
                 "register": "/register/",
@@ -54,6 +55,7 @@ urlpatterns = [
     # API
     path("api/", include(router.urls)),
     path("health/", health_check, name="health_check"),
+    path("version/", version_view, name="version"),
     # Веб-страницы (аутентификация)
     path("home/", home, name="home"),
     path("login/", login_page, name="login_page"),
